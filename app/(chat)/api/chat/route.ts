@@ -1,5 +1,5 @@
 import {
-  UIMessage,
+  type UIMessage,
   appendResponseMessages,
   createDataStreamResponse,
   smoothStream,
@@ -23,6 +23,7 @@ import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
+import { findDoctors } from '@/lib/ai/tools/find-doctors'; // Import the new tool
 import { isProductionEnvironment } from '@/lib/constants';
 import { myProvider } from '@/lib/ai/providers';
 
@@ -90,7 +91,8 @@ export async function POST(request: Request) {
             selectedChatModel === 'chat-model-reasoning'
               ? []
               : [
-                  'getWeather',
+                  'findDoctorsTool', // Add the new tool name here
+                  'getWeather', // Keep existing tools if needed
                   'createDocument',
                   'updateDocument',
                   'requestSuggestions',
@@ -98,6 +100,7 @@ export async function POST(request: Request) {
           experimental_transform: smoothStream({ chunking: 'word' }),
           experimental_generateMessageId: generateUUID,
           tools: {
+            findDoctorsTool: findDoctors, // Add the tool implementation here
             getWeather,
             createDocument: createDocument({ session, dataStream }),
             updateDocument: updateDocument({ session, dataStream }),
@@ -159,8 +162,9 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    console.error('Error in POST /api/chat:', error); // Add logging
     return new Response('An error occurred while processing your request!', {
-      status: 404,
+      status: 500, // Use 500 for server errors
     });
   }
 }
@@ -182,14 +186,15 @@ export async function DELETE(request: Request) {
   try {
     const chat = await getChatById({ id });
 
-    if (chat.userId !== session.user.id) {
-      return new Response('Unauthorized', { status: 401 });
+    if (!chat || chat.userId !== session.user.id) { // Check if chat exists before accessing userId
+      return new Response('Unauthorized or Chat Not Found', { status: 401 });
     }
 
     await deleteChatById({ id });
 
     return new Response('Chat deleted', { status: 200 });
   } catch (error) {
+    console.error('Error in DELETE /api/chat:', error); // Add logging
     return new Response('An error occurred while processing your request!', {
       status: 500,
     });

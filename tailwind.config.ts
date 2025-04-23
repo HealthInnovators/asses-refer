@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import defaultTheme from 'tailwindcss/defaultTheme'; // Import defaultTheme
 
 const config: Config = {
   darkMode: ['class'],
@@ -10,8 +11,23 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-geist)'],
-        mono: ['var(--font-geist-mono)'],
+        // Add Noto Sans fonts to the beginning of the sans-serif stack
+        // The browser will try each font in order until it finds one that supports the required glyphs.
+        // Include existing fonts (`var(--font-geist)` and default sans-serif) as fallbacks.
+        sans: [
+          'Noto Sans', // Base Noto Sans for Latin, etc.
+          'Noto Sans Devanagari', // For Hindi, Marathi
+          'Noto Sans Bengali', // For Bengali
+          'Noto Sans Tamil', // For Tamil
+          'Noto Sans Telugu', // For Telugu
+          'Noto Sans Kannada', // For Kannada
+          'Noto Sans Malayalam', // For Malayalam
+          'Noto Sans Gujarati', // For Gujarati
+          'var(--font-geist)', // Existing Geist font
+          ...defaultTheme.fontFamily.sans, // Default system sans-serif fonts
+        ],
+        // Keep mono font as is
+        mono: ['var(--font-geist-mono)', ...defaultTheme.fontFamily.mono],
       },
       screens: {
         'toast-mobile': '600px',
