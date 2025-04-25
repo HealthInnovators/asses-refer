@@ -1,37 +1,37 @@
-import {
-  customProvider,
-  extractReasoningMiddleware,
-  wrapLanguageModel,
-} from 'ai';
-import { xai } from '@ai-sdk/xai';
-import { isTestEnvironment } from '../constants';
-import {
-  artifactModel,
-  chatModel,
-  reasoningModel,
-  titleModel,
-} from './models.test';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { tool } from '@ai-sdk/core'; // Keep this if you still need the 'tool' function
 
-export const myProvider = isTestEnvironment
-  ? customProvider({
-      languageModels: {
-        'chat-model': chatModel,
-        'chat-model-reasoning': reasoningModel,
-        'title-model': titleModel,
-        'artifact-model': artifactModel,
-      },
-    })
-  : customProvider({
-      languageModels: {
-        'chat-model': xai('grok-2-1212'),
-        'chat-model-reasoning': wrapLanguageModel({
-          model: xai('grok-3-mini-beta'),
-          middleware: extractReasoningMiddleware({ tagName: 'think' }),
-        }),
-        'title-model': xai('grok-2-1212'),
-        'artifact-model': xai('grok-2-1212'),
-      },
-      imageModels: {
-        'small-model': xai.image('grok-2-image'),
-      },
-    });
+// Create the Google Generative AI provider instance
+const google = createGoogleGenerativeAI({
+  // Use the API key from environment variables
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+});
+
+// Define a function to get the appropriate Google model
+const getGoogleModel = (modelName: string) => {
+  // Map your internal model names to actual Google model IDs
+  switch (modelName) {
+    case 'title-model':
+      // Use a suitable Gemini model for title generation (e.g., gemini-1.5-flash-latest)
+      return google('models/gemini-1.5-flash-latest');
+    case 'text-model':
+    case 'default': // Fallback for other cases
+      // Use a general-purpose Gemini model (e.g., gemini-1.5-pro-latest)
+      return google('models/gemini-1.5-pro-latest');
+    // Add more cases if you have other specific model names
+    default:
+      // You might want to throw an error or return a default model
+      console.warn(`Unknown model name: ${modelName}. Falling back to default.`);
+      return google('models/gemini-1.5-pro-latest');
+  }
+};
+
+// Define the provider object that your application will use
+export const myProvider = {
+  // The languageModel function now returns the appropriate Google model
+  languageModel: (modelName: string) => getGoogleModel(modelName),
+
+  // Include the tool function if it's used elsewhere in your project
+  // If not, you can remove this line and the import for '@ai-sdk/core'
+  tool,
+};
