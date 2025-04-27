@@ -1,5 +1,5 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { tool } from '@ai-sdk/core'; // Keep this if you still need the 'tool' function
+import { tool } from 'ai'; // Corrected import path
 
 // Create the Google Generative AI provider instance
 const google = createGoogleGenerativeAI({
@@ -32,6 +32,5 @@ export const myProvider = {
   languageModel: (modelName: string) => getGoogleModel(modelName),
 
   // Include the tool function if it's used elsewhere in your project
-  // If not, you can remove this line and the import for '@ai-sdk/core'
   tool,
 };
