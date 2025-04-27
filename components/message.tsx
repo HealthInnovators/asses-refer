@@ -10,7 +10,7 @@ import { PencilEditIcon, SparklesIcon } from './icons';
 import { Markdown } from './markdown';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
-import { Weather } from './weather';
+// Removed Weather import as get-weather tool is removed
 import equal from 'fast-deep-equal';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -153,24 +153,10 @@ const PurePreviewMessage = ({
                 if (state === 'call') {
                   const { args } = toolInvocation;
 
+                  // Removed conditional rendering for deleted tools (getWeather, createDocument, updateDocument)
                   return (
-                    <div
-                      key={toolCallId}
-                      className={cx({
-                        skeleton: ['getWeather'].includes(toolName),
-                      })}
-                    >
-                      {toolName === 'getWeather' ? (
-                        <Weather />
-                      ) : toolName === 'createDocument' ? (
-                        <DocumentPreview isReadonly={isReadonly} args={args} />
-                      ) : toolName === 'updateDocument' ? (
-                        <DocumentToolCall
-                          type="update"
-                          args={args}
-                          isReadonly={isReadonly}
-                        />
-                      ) : toolName === 'requestSuggestions' ? (
+                    <div key={toolCallId}>
+                      {toolName === 'requestSuggestions' ? (
                         <DocumentToolCall
                           type="request-suggestions"
                           args={args}
@@ -184,22 +170,10 @@ const PurePreviewMessage = ({
                 if (state === 'result') {
                   const { result } = toolInvocation;
 
+                  // Removed conditional rendering for deleted tools (getWeather, createDocument, updateDocument)
                   return (
                     <div key={toolCallId}>
-                      {toolName === 'getWeather' ? (
-                        <Weather weatherAtLocation={result} />
-                      ) : toolName === 'createDocument' ? (
-                        <DocumentPreview
-                          isReadonly={isReadonly}
-                          result={result}
-                        />
-                      ) : toolName === 'updateDocument' ? (
-                        <DocumentToolResult
-                          type="update"
-                          result={result}
-                          isReadonly={isReadonly}
-                        />
-                      ) : toolName === 'requestSuggestions' ? (
+                      {toolName === 'requestSuggestions' ? (
                         <DocumentToolResult
                           type="request-suggestions"
                           result={result}

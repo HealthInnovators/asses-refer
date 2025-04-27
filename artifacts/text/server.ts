@@ -1,7 +1,7 @@
 import { smoothStream, streamText } from 'ai';
 import { myProvider } from '@/lib/ai/providers';
 import { createDocumentHandler } from '@/lib/artifacts/server';
-import { updateDocumentPrompt } from '@/lib/ai/prompts';
+import { systemPrompt } from '@/lib/ai/prompts'; // Removed updateDocumentPrompt
 
 export const textDocumentHandler = createDocumentHandler<'text'>({
   kind: 'text',
@@ -38,7 +38,7 @@ export const textDocumentHandler = createDocumentHandler<'text'>({
 
     const { fullStream } = streamText({
       model: myProvider.languageModel('artifact-model'),
-      system: updateDocumentPrompt(document.content, 'text'),
+      system: systemPrompt({ selectedChatModel: 'artifact-model' }), // Replaced updateDocumentPrompt with systemPrompt
       experimental_transform: smoothStream({ chunking: 'word' }),
       prompt: description,
       experimental_providerMetadata: {

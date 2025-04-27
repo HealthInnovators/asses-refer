@@ -19,11 +19,9 @@ import {
   getTrailingMessageId,
 } from '@/lib/utils';
 import { generateTitleFromUserMessage } from '../../actions';
-import { createDocument } from '@/lib/ai/tools/create-document';
-import { updateDocument } from '@/lib/ai/tools/update-document';
+// Removed imports for deleted tools: createDocument, updateDocument, getWeather
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
-import { getWeather } from '@/lib/ai/tools/get-weather';
-import { findDoctors } from '@/lib/ai/tools/find-doctors'; // Import the new tool
+import { findDoctorsTool } from '@/lib/ai/tools/find-doctors';
 import { isProductionEnvironment } from '@/lib/constants';
 import { myProvider } from '@/lib/ai/providers';
 
@@ -91,19 +89,15 @@ export async function POST(request: Request) {
             selectedChatModel === 'chat-model-reasoning'
               ? []
               : [
-                  'findDoctorsTool', // Add the new tool name here
-                  'getWeather', // Keep existing tools if needed
-                  'createDocument',
-                  'updateDocument',
+                  'findDoctorsTool', // Keep findDoctorsTool
+                  // Removed 'getWeather', 'createDocument', 'updateDocument'
                   'requestSuggestions',
                 ],
           experimental_transform: smoothStream({ chunking: 'word' }),
           experimental_generateMessageId: generateUUID,
           tools: {
-            findDoctorsTool: findDoctors, // Add the tool implementation here
-            getWeather,
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
+            findDoctorsTool: findDoctorsTool, // Keep findDoctorsTool
+            // Removed getWeather, createDocument, updateDocument tool implementations
             requestSuggestions: requestSuggestions({
               session,
               dataStream,

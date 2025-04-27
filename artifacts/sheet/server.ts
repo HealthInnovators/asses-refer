@@ -1,5 +1,5 @@
 import { myProvider } from '@/lib/ai/providers';
-import { sheetPrompt, updateDocumentPrompt } from '@/lib/ai/prompts';
+import { systemPrompt } from '@/lib/ai/prompts'; // Removed sheetPrompt and updateDocumentPrompt
 import { createDocumentHandler } from '@/lib/artifacts/server';
 import { streamObject } from 'ai';
 import { z } from 'zod';
@@ -11,7 +11,7 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
 
     const { fullStream } = streamObject({
       model: myProvider.languageModel('artifact-model'),
-      system: sheetPrompt,
+      system: systemPrompt({ selectedChatModel: 'artifact-model' }), // Replaced sheetPrompt with systemPrompt
       prompt: title,
       schema: z.object({
         csv: z.string().describe('CSV data'),
@@ -48,7 +48,7 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
 
     const { fullStream } = streamObject({
       model: myProvider.languageModel('artifact-model'),
-      system: updateDocumentPrompt(document.content, 'sheet'),
+      system: systemPrompt({ selectedChatModel: 'artifact-model' }), // Replaced updateDocumentPrompt with systemPrompt
       prompt: description,
       schema: z.object({
         csv: z.string(),
