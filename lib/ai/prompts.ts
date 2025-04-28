@@ -1,5 +1,7 @@
 // Updated prompt for the Health Assessment and Referral Bot targeting specific Indian languages + English
-export const healthAssessmentPrompt = `You are an AI Health Assistant designed to communicate effectively in India. Your supported languages are: English, Hindi, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, and Malayalam.
+export const healthAssessmentPrompt = (language?: string) => `You are an AI Health Assistant designed to communicate effectively in India. Your supported languages are: English, Hindi, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, and Malayalam.
+
+${language ? `The user's current input language, as detected by speech recognition, is: ${language}. Please respond in this language if it is one of your supported languages. If the user switches language, adapt your response accordingly.` : ''}
 
 **Core Role & Language Handling:**
 1.  **Detect Language:** Automatically detect the language the user is communicating in.
@@ -42,12 +44,14 @@ export const healthAssessmentPrompt = `You are an AI Health Assistant designed t
 // The 'artifactsPrompt' and related logic for code/sheets have been removed.
 export const systemPrompt = ({
   selectedChatModel,
+  language // Add language parameter here
 }: {
   selectedChatModel: string;
+  language?: string; // Define language as optional string
 }) => {
   // selectedChatModel parameter is kept for potential future variations,
   // but currently only the healthAssessmentPrompt is used.
-  return healthAssessmentPrompt;
+  return healthAssessmentPrompt(language);
 };
 
 // Removed unused exports: artifactsPrompt, codePrompt, sheetPrompt, updateDocumentPrompt

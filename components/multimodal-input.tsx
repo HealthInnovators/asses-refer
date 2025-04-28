@@ -24,6 +24,28 @@ import { SuggestedActions } from './suggested-actions';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 
+import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
+
+// Simple Microphone Icon component
+const MicrophoneIcon = ({ size = 16 }: { size?: number }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="lucide lucide-mic"
+  >
+    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+    <line x1="12" x2="12" y1="19" y2="22" />
+  </svg>
+);
+
 function PureMultimodalInput({
   chatId,
   input,
@@ -53,6 +75,17 @@ function PureMultimodalInput({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
+
+  // Get currentLang from the hook
+  const { isListening, transcript, startListening, stopListening, browserSupportsSpeechRecognition, currentLang } = useSpeechRecognition();
+
+  // State to track if the component is mounted on the client
+  const [isClient, setIsClient] = useState(false);
+
+  // Set isClient to true on the first client-side render
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -95,6 +128,13 @@ function PureMultimodalInput({
     setLocalStorageInput(input);
   }, [input, setLocalStorageInput]);
 
+  useEffect(() => {
+    if (isListening && transcript !== input) {
+      setInput(transcript);
+      adjustHeight();
+    }
+  }, [isListening, transcript, input, setInput]);
+
   const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(event.target.value);
     adjustHeight();
@@ -106,8 +146,12 @@ function PureMultimodalInput({
   const submitForm = useCallback(() => {
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
+    // Include currentLang in the experimental_extraBody
     handleSubmit(undefined, {
       experimental_attachments: attachments,
+      experimental_extraBody: { // Add extra body to send language
+        language: currentLang, // Pass the detected language
+      },
     });
 
     setAttachments([]);
@@ -124,6 +168,7 @@ function PureMultimodalInput({
     setLocalStorageInput,
     width,
     chatId,
+    currentLang, // Add currentLang to dependencies
   ]);
 
   const uploadFile = async (file: File) => {
@@ -179,6 +224,20 @@ function PureMultimodalInput({
     [setAttachments],
   );
 
+  const handleMicClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    if (!browserSupportsSpeechRecognition) {
+      toast.info("Speech recognition is not supported in your browser.");
+      return;
+    }
+
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
   return (
     <div className="relative w-full flex flex-col gap-4">
       {messages.length === 0 &&
@@ -216,13 +275,13 @@ function PureMultimodalInput({
               isUploading={true}
             />
           ))}
-        </div>
+        }
       )}
 
       <Textarea
         data-testid="multimodal-input"
         ref={textareaRef}
-        placeholder="Send a message..."
+        placeholder={isListening ? "Listening..." : "Send a message..."}
         value={input}
         onChange={handleInput}
         className={cx(
@@ -248,21 +307,42 @@ function PureMultimodalInput({
         }}
       />
 
-      <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start">
-        <AttachmentsButton fileInputRef={fileInputRef} status={status} />
-      </div>
+      {isClient && (
+        <div className="absolute bottom-0 left-0 p-2 w-full flex flex-row justify-between">
+          <div className="flex flex-row gap-2"> {/* Left group: Attachments */}
+             <AttachmentsButton fileInputRef={fileInputRef} status={status} />
+          </div>
+          <div className="flex flex-row gap-2"> {/* Right group: Mic and Send/Stop */}
+             {browserSupportsSpeechRecognition && (
+                <Button
+                  data-testid="microphone-button"
+                  className={cx(
+                    "rounded-md p-[7px] h-fit dark:border-zinc-700 hover:dark:bg-zinc-900 hover:bg-zinc-200",
+                   {
+                    "text-red-500 dark:text-red-500": isListening, // Highlight when listening
+                   }
+                )}
+                  onClick={handleMicClick}
+                  disabled={status !== 'ready' && status !== 'awaiting_artifact_input'}
+                  variant="ghost"
+                  title={isListening ? "Stop Listening" : "Start Speech Input"}
+                >
+                  <MicrophoneIcon size={14} />
+                </Button>
+              )}
 
-      <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-        {status === 'submitted' ? (
-          <StopButton stop={stop} setMessages={setMessages} />
-        ) : (
-          <SendButton
-            input={input}
-            submitForm={submitForm}
-            uploadQueue={uploadQueue}
-          />
-        )}
-      </div>
+             {status === 'submitted' ? (
+              <StopButton stop={stop} setMessages={setMessages} />
+            ) : (
+              <SendButton
+                input={input}
+                submitForm={submitForm}
+                uploadQueue={uploadQueue}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -273,6 +353,9 @@ export const MultimodalInput = memo(
     if (prevProps.input !== nextProps.input) return false;
     if (prevProps.status !== nextProps.status) return false;
     if (!equal(prevProps.attachments, nextProps.attachments)) return false;
+
+    // Add checks for props related to speech recognition if passed down
+    // e.g., if you pass isListening down as a prop
 
     return true;
   },
@@ -293,7 +376,7 @@ function PureAttachmentsButton({
         event.preventDefault();
         fileInputRef.current?.click();
       }}
-      disabled={status !== 'ready'}
+      disabled={status !== 'ready' && status !== 'awaiting_artifact_input'}
       variant="ghost"
     >
       <PaperclipIcon size={14} />
@@ -317,6 +400,9 @@ function PureStopButton({
       onClick={(event) => {
         event.preventDefault();
         stop();
+        // Note: setMessages((messages) => messages) might not be necessary here
+        // depending on how the state is managed by the AI SDK hook.
+        // If needed, ensure it correctly updates messages to stop rendering.
         setMessages((messages) => messages);
       }}
     >

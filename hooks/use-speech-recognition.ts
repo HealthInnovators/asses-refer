@@ -4,15 +4,15 @@ interface SpeechRecognitionHook {
   isListening: boolean;
   transcript: string;
   error: string | null;
-  isSupported: boolean;
+  browserSupportsSpeechRecognition: boolean; // Renamed for clarity
   startListening: () => void;
   stopListening: () => void;
   currentLang: string; // Add state to expose the detected language
 }
 
-// Check for SpeechRecognition API globally
+// Conditionally access browser APIs only in the client environment
 const SpeechRecognition =
-  (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  typeof window !== 'undefined' ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition : undefined;
 
 // Supported language codes (BCP 47 format, typically includes region)
 const supportedLangs: Record<string, string> = {
@@ -62,11 +62,14 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
   const [error, setError] = useState<string | null>(null);
   const [recognitionInstance, setRecognitionInstance] = useState<any>(null); // Store recognition instance
   const [currentLang, setCurrentLang] = useState<string>('en-US'); // Store the language being used
-  const isSupported = !!SpeechRecognition;
+
+  // Check support only in the browser
+  const browserSupportsSpeechRecognition = typeof window !== 'undefined' && !!SpeechRecognition;
 
   // Initialize SpeechRecognition
   useEffect(() => {
-    if (!isSupported) {
+    // Only proceed if in a browser environment and speech recognition is supported
+    if (!browserSupportsSpeechRecognition) {
       setError('Speech recognition is not supported in this browser.');
       return;
     }
@@ -75,7 +78,7 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
     recognition.continuous = true; // Keep listening even after pauses
     recognition.interimResults = true; // Get results while speaking
 
-    // Determine and set language
+    // Determine and set language only in the browser
     const browserLang = typeof navigator !== 'undefined' ? navigator.language : 'en-US';
     const recognitionLang = getSupportedLang(browserLang);
     recognition.lang = recognitionLang;
@@ -130,9 +133,9 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
         recognition.stop();
       }
     };
-  // Run only once on mount, as browser language is unlikely to change mid-session
+  // Initialize only once on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSupported]);
+  }, []); // Changed dependency array to empty
 
   const startListening = useCallback(() => {
     if (recognitionInstance && !isListening) {
@@ -159,7 +162,7 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
     isListening,
     transcript,
     error,
-    isSupported,
+    browserSupportsSpeechRecognition, // Expose the support status
     startListening,
     stopListening,
     currentLang, // Expose the language being used
