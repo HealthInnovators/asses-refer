@@ -76,8 +76,13 @@ function PureMultimodalInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
 
-  // Get currentLang from the hook
-  const { isListening, transcript, startListening, stopListening, browserSupportsSpeechRecognition, currentLang } = useSpeechRecognition();
+  const {
+    isListening,
+    transcript,
+    startListening,
+    stopListening,
+    browserSupportsSpeechRecognition,
+  } = useSpeechRecognition();
 
   // State to track if the component is mounted on the client
   const [isClient, setIsClient] = useState(false);
@@ -146,12 +151,8 @@ function PureMultimodalInput({
   const submitForm = useCallback(() => {
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
-    // Include currentLang in the experimental_extraBody
     handleSubmit(undefined, {
       experimental_attachments: attachments,
-      experimental_extraBody: { // Add extra body to send language
-        language: currentLang, // Pass the detected language
-      },
     });
 
     setAttachments([]);
@@ -168,7 +169,6 @@ function PureMultimodalInput({
     setLocalStorageInput,
     width,
     chatId,
-    currentLang, // Add currentLang to dependencies
   ]);
 
   const uploadFile = async (file: File) => {
@@ -225,9 +225,10 @@ function PureMultimodalInput({
   );
 
   const handleMicClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
+    // Add event parameter
+    event.preventDefault(); // Prevent default form submission
     if (!browserSupportsSpeechRecognition) {
-      toast.info("Speech recognition is not supported in your browser.");
+      toast.info('Speech recognition is not supported in your browser.');
       return;
     }
 
@@ -275,13 +276,13 @@ function PureMultimodalInput({
               isUploading={true}
             />
           ))}
-        }
+        </div>
       )}
 
       <Textarea
         data-testid="multimodal-input"
         ref={textareaRef}
-        placeholder={isListening ? "Listening..." : "Send a message..."}
+        placeholder={isListening ? 'Listening...' : 'Send a message...'}
         value={input}
         onChange={handleInput}
         className={cx(
@@ -307,31 +308,37 @@ function PureMultimodalInput({
         }}
       />
 
+      {/* Adjusted button container layout - Render only on client */}
       {isClient && (
         <div className="absolute bottom-0 left-0 p-2 w-full flex flex-row justify-between">
-          <div className="flex flex-row gap-2"> {/* Left group: Attachments */}
-             <AttachmentsButton fileInputRef={fileInputRef} status={status} />
+          <div className="flex flex-row gap-2">
+            {' '}
+            {/* Left group: Attachments */}
+            <AttachmentsButton fileInputRef={fileInputRef} status={status} />
           </div>
-          <div className="flex flex-row gap-2"> {/* Right group: Mic and Send/Stop */}
-             {browserSupportsSpeechRecognition && (
-                <Button
-                  data-testid="microphone-button"
-                  className={cx(
-                    "rounded-md p-[7px] h-fit dark:border-zinc-700 hover:dark:bg-zinc-900 hover:bg-zinc-200",
-                   {
-                    "text-red-500 dark:text-red-500": isListening, // Highlight when listening
-                   }
+          <div className="flex flex-row gap-2">
+            {' '}
+            {/* Right group: Mic and Send/Stop */}
+            {browserSupportsSpeechRecognition && (
+              <Button
+                data-testid="microphone-button"
+                className={cx(
+                  'rounded-md p-[7px] h-fit dark:border-zinc-700 hover:dark:bg-zinc-900 hover:bg-zinc-200',
+                  {
+                    'text-red-500 dark:text-red-500': isListening, // Highlight when listening
+                  },
                 )}
-                  onClick={handleMicClick}
-                  disabled={status !== 'ready' && status !== 'awaiting_artifact_input'}
-                  variant="ghost"
-                  title={isListening ? "Stop Listening" : "Start Speech Input"}
-                >
-                  <MicrophoneIcon size={14} />
-                </Button>
-              )}
-
-             {status === 'submitted' ? (
+                onClick={handleMicClick} // Use the updated click handler
+                disabled={
+                  status !== 'ready' && status !== 'awaiting_artifact_input'
+                }
+                variant="ghost"
+                title={isListening ? 'Stop Listening' : 'Start Speech Input'}
+              >
+                <MicrophoneIcon size={14} />
+              </Button>
+            )}
+            {status === 'submitted' ? (
               <StopButton stop={stop} setMessages={setMessages} />
             ) : (
               <SendButton
@@ -427,7 +434,7 @@ function PureSendButton({
       data-testid="send-button"
       className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
       onClick={(event) => {
-        event.preventDefault();
+        event.preventDefault(); // Prevent default form submission
         submitForm();
       }}
       disabled={input.length === 0 || uploadQueue.length > 0}
