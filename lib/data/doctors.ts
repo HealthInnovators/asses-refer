@@ -1,126 +1,246 @@
+import { env } from 'process';
+
 export interface Doctor {
   id: string;
   name: string;
   specialty: string;
-  address: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-  };
-  acceptedInsurance: string[]; // List of accepted insurance providers (use general names for mocking)
-  contact: string;
-  // Add other relevant fields like ratings, hospital affiliations, etc. if needed
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  phoneNumber?: string;
+  country: string;
 }
 
-export const mockDoctorDatabase: Doctor[] = [
-  {
-    id: 'doc1',
-    name: 'Dr. Alice Smith',
-    specialty: 'General Practice',
-    address: {
-      street: '123 Health St',
-      city: 'Springfield',
-      state: 'IL',
-      zipCode: '62704',
-    },
-    acceptedInsurance: ['BlueCross', 'Aetna', 'Cigna', 'Medicare'],
-    contact: '555-1234',
-  },
-  {
-    id: 'doc2',
-    name: 'Dr. Bob Johnson',
-    specialty: 'Cardiology',
-    address: {
-      street: '456 Heart Ave',
-      city: 'Springfield',
-      state: 'IL',
-      zipCode: '62702',
-    },
-    acceptedInsurance: ['BlueCross', 'UnitedHealthcare', 'Medicare'],
-    contact: '555-5678',
-  },
-  {
-    id: 'doc3',
-    name: 'Dr. Carol Williams',
-    specialty: 'Pediatrics',
-    address: {
-      street: '789 Child Way',
-      city: 'Shelbyville',
-      state: 'IL',
-      zipCode: '62565',
-    },
-    acceptedInsurance: ['Aetna', 'Cigna', 'Medicaid'],
-    contact: '555-9012',
-  },
-  {
-    id: 'doc4',
-    name: 'Springfield Urgent Care',
-    specialty: 'Urgent Care',
-    address: {
-      street: '101 Speedy Rd',
-      city: 'Springfield',
-      state: 'IL',
-      zipCode: '62704',
-    },
-    acceptedInsurance: ['BlueCross', 'Aetna', 'Cigna', 'UnitedHealthcare', 'Medicare', 'Medicaid'],
-    contact: '555-1122',
-  },
-  {
-    id: 'doc5',
-    name: 'Dr. David Brown',
-    specialty: 'Dermatology',
-    address: {
-      street: '234 Skin Blvd',
-      city: 'Springfield',
-      state: 'IL',
-      zipCode: '62703',
-    },
-    acceptedInsurance: ['BlueCross', 'Aetna', 'UnitedHealthcare'],
-    contact: '555-3344',
-  },
-  {
-    id: 'doc6',
-    name: 'Shelbyville Community Clinic',
-    specialty: 'General Practice',
-    address: {
-      street: '567 Community Dr',
-      city: 'Shelbyville',
-      state: 'IL',
-      zipCode: '62565',
-    },
-    acceptedInsurance: ['Aetna', 'Cigna', 'Medicare', 'Medicaid'],
-    contact: '555-6677',
+// Function to fetch doctors from the USA API
+const fetchUSADoctors = async (
+  city: string,
+  zipCode: string,
+  specialty: string,
+): Promise<Doctor[]> => {
+  let url = `https://npiregistry.cms.hhs.gov/api/?version=2.1&city=${city}&postal_code=${zipCode}&enumeration_type=NPI-1`;
+
+  let taxonomyDescription = specialty;
+  if (specialty.toLowerCase() === 'general practice') {
+    taxonomyDescription = 'General Practice';
   }
-];
+  if (specialty.toLowerCase() === 'cardiologist') {
+    taxonomyDescription = 'Pharmacist, Cardiology';
+  }
+
+  if (taxonomyDescription) {
+    url += `&taxonomy_description=${taxonomyDescription}`;
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+
+    if (data.result_count === 0) {
+      return []; // Return an empty array if no doctors are found
+    }
+
+    // Process and format the data
+    const doctors: Doctor[] = data.results
+      .map((item: any) => {
+        const practiceLocation =
+          item.practiceLocations && item.practiceLocations.length > 0
+            ? item.practiceLocations[0]
+            : null;
+        const firstAddress =
+          item.addresses && item.addresses.length > 0 ? item.addresses[0] : {};
+
+        if (
+          (practiceLocation?.city || firstAddress.city)?.toLowerCase() !==
+            city.toLowerCase() ||
+          (practiceLocation?.state || firstAddress.state) !== 'MA'
+        ) {
+          return null;
+        }
+        //Filter to keep only doctors with General Practice as primary specialty.
+        if (taxonomyDescription === 'General Practice') {
+          const isPrimaryGeneralPractice = item.taxonomies.some(
+            (taxonomy: any) =>
+              taxonomy.desc === 'General Practice' && taxonomy.primary === true,
+          );
+          if (!isPrimaryGeneralPractice) {
+            return null; // Skip this doctor if not primary general practice
+          }
+        }
+
+        const address = practiceLocation
+          ? `${practiceLocation.address_1 || ''} ${
+              practiceLocation.address_2 || ''
+            }`.trim()
+          : `${firstAddress.address_1 || ''} ${
+              firstAddress.address_2 || ''
+            }`.trim();
+
+        return {
+          id: item.number,
+          name: `${item.basic.name_prefix || ''} ${item.basic.first_name || ''} ${item.basic.last_name || ''} ${item.basic.credential || ''}`,
+          specialty:
+            item.taxonomies.length > 0
+              ? item.taxonomies[0].desc
+              : 'Not available',
+          address: `${address}`.trim(),
+          city: practiceLocation.city || firstAddress.city || 'Not available',
+          state:
+            practiceLocation.state || firstAddress.state || 'Not available',
+          zipCode:
+            practiceLocation.postal_code ||
+            firstAddress.postal_code ||
+            'Not available',
+          phoneNumber: practiceLocation
+            ? practiceLocation.telephone_number
+            : firstAddress.telephone_number || undefined,
+
+          country: 'USA',
+        };
+      })
+      .filter((doctor: Doctor | null) => doctor !== null) as Doctor[]; // Filter out null entries
+
+    return doctors;
+  } catch (error) {
+    console.error('Error fetching USA doctors:', error);
+    return []; // Return an empty array in case of error
+  }
+};
+
+// Function to fetch doctors from the India API
+const fetchIndiaDoctors = async (
+  city: string,
+  zipCode: string,
+  specialty: string,
+  insurance: string,
+): Promise<Doctor[]> => {
+  const apiKey = env.INDIA_DOCTOR_API_KEY; // Replace with your actual API key
+  const hprId = env.INDIA_HPR_ID; // Replace with your actual HPR ID
+
+  if (!apiKey || !hprId) {
+    console.error('Missing API key or HPR ID for India doctors search.');
+    return [];
+  }
+
+  let url = `https://hpr.abdm.gov.in/api/v1/doctors`;
+
+  const headers: Record<string, string> = {
+    'X-CM-ID': hprId,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  const body: Record<string, string | undefined> = {};
+
+  if (specialty) {
+    body.specialty = specialty;
+  }
+  if (zipCode) {
+    body.pincode = zipCode;
+  }
+  if (city) {
+    body.city = city;
+  }
+
+  const requestOptions: RequestInit = {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  };
+
+  try {
+    const response = await fetch(url, requestOptions);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.length === 0) {
+      return [];
+    }
+
+    // Process and format the data
+    const doctors: Doctor[] = data.map((item: any) => {
+      // Use the first address from the array or default to an empty string
+      const firstAddress =
+        item.address && item.address.length > 0 ? item.address[0] : {};
+
+      return {
+        id: item.hprId,
+        name: `${item.firstName || ''} ${item.middleName || ''} ${item.lastName || ''}`,
+        specialty: item.specialty || 'Not available',
+        address: firstAddress.addressLine || 'Not available',
+        city: firstAddress.city || 'Not available',
+        state: firstAddress.state || 'Not available',
+        zipCode: firstAddress.pincode || 'Not available',
+        phoneNumber: item.phoneNumber || 'Not available',
+        country: 'India',
+      };
+    });
+
+    return doctors;
+  } catch (error) {
+    console.error('Error fetching India doctors:', error);
+    return [];
+  }
+};
 
 // Placeholder function for searching the database
 // In a real application, this would involve more complex filtering logic
 // and potentially API calls if the data is external.
-export const findDoctors = async (criteria: {
-  city?: string;
-  zipCode?: string;
+export const findDoctors = async ({
+  country,
+  city,
+  zipCode,
+  specialty,
+  insurance,
+}: {
+  country: string;
+  city: string;
+  zipCode: string;
   specialty?: string;
-  insurance?: string;
 }): Promise<Doctor[]> => {
-  console.log("Searching doctors with criteria:", criteria);
-  return mockDoctorDatabase.filter(doctor => {
-    let match = true;
-    if (criteria.zipCode && doctor.address.zipCode !== criteria.zipCode) {
-      match = false;
-    }
-    if (criteria.city && doctor.address.city.toLowerCase() !== criteria.city.toLowerCase()) {
-      match = false;
-    }
-    if (criteria.specialty && !doctor.specialty.toLowerCase().includes(criteria.specialty.toLowerCase())) {
-      match = false;
-    }
-    if (criteria.insurance && !doctor.acceptedInsurance.some(ins => ins.toLowerCase() === criteria.insurance?.toLowerCase())) {
-        // For mock data, allow partial match or handle 'any'/'none'
-        if (criteria.insurance.toLowerCase() !== 'any' && criteria.insurance.toLowerCase() !== 'none') {
-             match = false;
-        }
-    }
-    return match;
+  console.log('INDIA_DOCTOR_API_KEY:', process.env.INDIA_DOCTOR_API_KEY);
+  console.log('INDIA_HPR_ID:', process.env.INDIA_HPR_ID);
+
+  console.log('Searching doctors with criteria:', {
+    country,
+    city,
+    zipCode,
+    specialty,
   });
+
+  if (typeof country !== 'string') {
+    console.error('Invalid criteria: country must be a string.', { country });
+    return [];
+  }
+  if (typeof city !== 'string' && typeof zipCode !== 'string') {
+    console.error(
+      'Invalid criteria: Either city or zipCode must be a string.',
+      { city, zipCode },
+    );
+    return [];
+  }
+
+  // Check the country and call the appropriate API
+  switch (country.toLowerCase()) {
+    case 'usa':
+      return await fetchUSADoctors(city, zipCode, specialty || '');
+    case 'india':
+      return await fetchIndiaDoctors(city, zipCode, specialty || '');
+    default:
+      console.error(`Unsupported country: ${country}`);
+      return [];
+  }
 };

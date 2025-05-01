@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { tool } from 'ai'; // Corrected import path
-import { findDoctors } from '@/lib/data/doctors'; // Adjust path if necessary
+import { tool } from 'ai';
+import { Doctor, findDoctors } from '@/lib/data/doctors';
 
 export const findDoctorsTool = tool({
   description:
-    'Find doctors or clinics based on location (city or zip code), specialty, and optionally, insurance provider. Ask the user for this information if not provided.',
+    'Find doctors or clinics based on location. You must provide a city and country or a zip code and country. Country is mandatory. You can optionally provide the specialty and insurance provider. If `city`, `zipCode` or `country` are not provided, ask the user for the missing information.',
   parameters: z.object({
     city: z
       .string()
@@ -14,25 +14,42 @@ export const findDoctorsTool = tool({
       .string()
       .optional()
       .describe('The zip code to search for doctors in. Use this or city.'),
+    country: z
+      .string()
+      .optional()
+      .describe('The country to search for doctors in. Use USA or India.'),
     specialty: z
       .string()
       .optional()
       .describe(
         'The medical specialty required (e.g., General Practice, Cardiology, Pediatrics, Urgent Care).',
       ),
-    insurance: z
-      .string()
-      .optional()
-      .describe(
-        'The users insurance provider (e.g., BlueCross, Aetna). If not provided, search for all.',
-      ),
   }),
-  execute: async ({ city, zipCode, specialty, insurance }) => {
-    // Ensure at least city or zipCode is provided before calling the actual function
-    if (!city && !zipCode) {
+  execute: async ({ city, zipCode, specialty, country }) => {
+    // Map "general practitioner" or "general practitioners" to "General Practice"
+    // Map "cardiologist" or "cardiologists" to "Pharmacist, Cardiology"
+    let mappedSpecialty = specialty;
+    let userSpecialty = specialty;
+    if (
+      specialty?.toLowerCase() === 'general practitioner' ||
+      specialty?.toLowerCase() === 'general practitioners'
+    ) {
+      userSpecialty = 'general practitioner';
+      mappedSpecialty = 'General Practice';
+    } else if (
+      specialty?.toLowerCase() === 'cardiologist' ||
+      specialty?.toLowerCase() === 'cardiologists'
+    ) {
+      userSpecialty = 'cardiologist';
+      mappedSpecialty = 'Pharmacist, Cardiology';
+    }
+
+      // Ensure at least city or zipCode is provided before calling the actual function
+    if ((!city && !zipCode) || !country) {
       return {
         status: 'error',
-        message: 'Please provide a city or zip code for the search.',
+        message:
+          'Please provide a city or zip code and a country for the search.',
         results: [],
       };
     }
@@ -41,29 +58,50 @@ export const findDoctorsTool = tool({
       const doctors = await findDoctors({
         city,
         zipCode,
-        specialty,
-        // Handle empty string or undefined for insurance
-        insurance: insurance || undefined,
+        country,
+        specialty: mappedSpecialty,
       });
 
       if (doctors.length === 0) {
+        if (userSpecialty && city) {
+          const state = country === 'USA' ? ', MA' : '';
+          return {
+            status: 'success',
+            message: `I couldn't find any ${userSpecialty} doctors in ${city}${state} matching your criteria. This could be because the API does not have any doctors with that specialty in that location. Could you please double-check the spelling or try a different specialty or location?`,
+            results: [],
+          };
+        }
+
+        if (city) {
+          return {
+            status: 'success',
+            message: `I couldn't find any doctors in ${city} matching your criteria.`,
+            results: [],
+          };
+        }
+
         return {
           status: 'success',
-          message:
-            'No doctors found matching your criteria in the mock database.',
+          message: 'No doctors found matching your criteria.',
           results: [],
         };
       }
 
-      // Format the results for the AI to present
+      // Format the results for the AI to present in a list format
       const formattedResults = doctors
-        .map(
-          (doc) =>
-            `Name: ${doc.name}, Specialty: ${doc.specialty}, Address: ${doc.address.street}, ${doc.address.city}, ${doc.address.state} ${doc.address.zipCode}, Contact: ${doc.contact}, Insurance Accepted: ${doc.acceptedInsurance.join(', ') || 'N/A'}`,
-        )
-        .join('\n---\n');
-
-      // Corrected join separator
+        .map((doc: Doctor) => {
+          let result = `\n- Name: ${doc.name}\n`;
+          result += `  - Specialty: ${doc.specialty}\n`;
+          result += `  - Address: ${doc.address}\n`;
+          result += `  - City: ${doc.city}\n`;
+          result += `  - State: ${doc.state}\n`;
+          result += `  - Zip Code: ${doc.zipCode}\n`;
+          if (doc.phoneNumber) {
+            result += `  - Phone Number: ${doc.phoneNumber}\n`;
+          }
+          return result;
+        })
+        .join('');
 
       return {
         status: 'success',
